@@ -52,7 +52,7 @@ Added *esp32-s3-devkitc-1-n16r8v.json* board to platformio IDE.
     "name": "Espressif ESP32-S3-DevKitC-1-N16R8V (16 MB QD, No PSRAM)",
     "upload": {
       "flash_size": "16MB",
-      "maximum_ram_size": 532480,
+      "maximum_ram_size": 327680,
       "maximum_size": 16777216,
       "require_upload_port": true,
       "speed": 460800

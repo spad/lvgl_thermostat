@@ -1,64 +1,121 @@
 #include <Arduino.h>
 #include <sc01plus.hpp>
-#include <lv_conf.h>
+#include <lvgl.h>
+#include "demos/lv_demos.h"
+/*
+  calibrationData: 0, 28, 0, 479, 319, 16, 312, 479,
+*/
 
-LGFX display;
+LGFX tft;
 
-void setup(void)
+/*To use the built-in examples and demos of LVGL uncomment the includes below respectively.
+ *You also need to copy `lvgl/examples` to `lvgl/src/examples`. Similarly for the demos `lvgl/demos` to `lvgl/src/demos`.
+ Note that the `lv_examples` library is for LVGL v7 and you shouldn't install it for this version (since LVGL v8)
+ as the examples and demos are now part of the main LVGL library. */
+
+/*Change to your screen resolution*/
+static const uint16_t screenWidth  = 480;
+static const uint16_t screenHeight = 320;
+
+static lv_disp_draw_buf_t draw_buf;
+static lv_color_t buf[ screenWidth * screenHeight / 10 ];
+
+
+/* Display flushing */
+void my_disp_flush( lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p )
 {
-  Serial.begin(115200);
-  display.init();
+    uint32_t w = ( area->x2 - area->x1 + 1 );
+    uint32_t h = ( area->y2 - area->y1 + 1 );
 
-  display.setTextSize((std::max(display.width(), display.height()) + 255) >> 8);
+    tft.startWrite();
+    tft.setAddrWindow( area->x1, area->y1, w, h );
+    tft.writePixels((lgfx::rgb565_t*)&color_p->full,w * h);
+    //tft.pushColors( ( uint16_t * )&color_p->full, w * h, true );
+    tft.endWrite();
 
-  if (display.touch())
-  {
-    if (display.width() < display.height()) display.setRotation(display.getRotation() ^ 1);
+    lv_disp_flush_ready( disp_drv );
+}
 
-    display.setTextDatum(textdatum_t::middle_center);
-    display.drawString("touch the arrow marker.", display.width()>>1, display.height() >> 1);
-    display.setTextDatum(textdatum_t::top_left);
+/*Read the touchpad*/
+void my_touchpad_read( lv_indev_drv_t * indev_drv, lv_indev_data_t * data )
+{
+    uint16_t touchX, touchY;
 
-    std::uint16_t fg = TFT_WHITE;
-    std::uint16_t bg = TFT_BLACK;
-    if (display.isEPD()) std::swap(fg, bg);
-    uint16_t calibrationData[8];
-    display.calibrateTouch(calibrationData, fg, bg, std::max(display.width(), display.height()) >> 3);
-    for (int i=0;i<8;i++) {
-      Serial.print(calibrationData[i]);
-      Serial.print(", ");
+    bool touched = tft.getTouch( &touchX, &touchY);
+
+    if( !touched )
+    {
+        data->state = LV_INDEV_STATE_REL;
     }
-  }
+    else
+    {
+        data->state = LV_INDEV_STATE_PR;
 
-  display.fillScreen(TFT_BLACK);
+        /*Set the coordinates*/
+        data->point.x = touchX;
+        data->point.y = touchY;
+
+        Serial.print( "Data x " );
+        Serial.println( touchX );
+
+        Serial.print( "Data y " );
+        Serial.println( touchY );
+    }
 }
 
-uint32_t count = ~0;
-void loop(void)
+void setup()
 {
-  display.startWrite();
-  display.setRotation(++count & 7);
-  display.setColorDepth((count & 8) ? 16 : 24);
+    Serial.begin( 115200 ); /* prepare for possible serial debug */
 
+  
+    tft.begin();          /* TFT init */
+    tft.setRotation( 1 ); /* Landscape orientation, flipped */
+    tft.setBrightness(255);
+    /*Set the touchscreen calibration data,
+     the actual data for your display can be acquired using
+     the Generic -> Touch_calibrate example from the TFT_eSPI library*/
+    uint16_t calData[] = { 0, 28, 0, 479, 319, 16, 312, 479 };
+    tft.setTouchCalibrate( calData );
 
-  display.setTextColor(TFT_WHITE);
-  display.drawNumber(display.getRotation(), 16, 0);
+    lv_init();
+    lv_disp_draw_buf_init( &draw_buf, buf, NULL, screenWidth * screenHeight / 10 );
 
-  display.setTextColor(0xFF0000U);
-  display.drawString("R", 30, 16);
-  display.setTextColor(0x00FF00U);
-  display.drawString("G", 40, 16);
-  display.setTextColor(0x0000FFU);
-  display.drawString("B", 50, 16);
+    /*Initialize the display*/
+    static lv_disp_drv_t disp_drv;
+    lv_disp_drv_init( &disp_drv );
+    /*Change the following line to your display resolution*/
+    disp_drv.hor_res = screenWidth;
+    disp_drv.ver_res = screenHeight;
+    disp_drv.flush_cb = my_disp_flush;
+    disp_drv.draw_buf = &draw_buf;
+    lv_disp_drv_register( &disp_drv );
 
-  display.drawRect(30,30,display.width()-60,display.height()-60,count*7);
-  display.drawFastHLine(0, 0, 10);
-
-  display.endWrite();
-
-  int32_t x, y;
-  if (display.getTouch(&x, &y)) {
-    display.fillRect(x-2, y-2, 5, 5, count*7);
-  }
+    /*Initialize the (dummy) input device driver*/
+    static lv_indev_drv_t indev_drv;
+    lv_indev_drv_init( &indev_drv );
+    indev_drv.type = LV_INDEV_TYPE_POINTER;
+    indev_drv.read_cb = my_touchpad_read;
+    lv_indev_drv_register( &indev_drv );
+  
+ 
+    /* Try an example. See all the examples 
+     * online: https://docs.lvgl.io/master/examples.html
+     * source codes: https://github.com/lvgl/lvgl/tree/e7f88efa5853128bf871dde335c0ca8da9eb7731/examples */
+     //lv_example_btn_1();
+   
+     /*Or try out a demo. Don't forget to enable the demos in lv_conf.h. E.g. LV_USE_DEMOS_WIDGETS*/
+    lv_demo_widgets();               
+    // lv_demo_benchmark();          
+    // lv_demo_keypad_encoder();     
+    // lv_demo_music();              
+    // lv_demo_printer();
+    // lv_demo_stress();
+    
+    Serial.println( "Setup done" );
 }
 
+void loop()
+{
+    lv_timer_handler(); /* let the GUI do its work */
+    delay( 5 );
+}
