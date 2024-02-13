@@ -18,22 +18,38 @@ static const uint16_t screenWidth  = 480;
 static const uint16_t screenHeight = 320;
 
 static lv_disp_draw_buf_t draw_buf;
-static lv_color_t buf[ screenWidth * screenHeight / 10 ];
+static lv_color_t buf[2][ screenWidth * screenHeight / 10  ];
 
 
 /* Display flushing */
 void my_disp_flush( lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p )
 {
-    uint32_t w = ( area->x2 - area->x1 + 1 );
-    uint32_t h = ( area->y2 - area->y1 + 1 );
+    if (tft.getStartCount() == 0)
+    {   // Processing if not yet started
+        tft.startWrite();
+    }
+    tft.pushImageDMA( area->x1
+                    , area->y1
+                    , area->x2 - area->x1 + 1
+                    , area->y2 - area->y1 + 1
+                    , ( lgfx::rgb565_t* )&color_p->full);
+    tft.endWrite();
+    lv_disp_flush_ready( disp_drv );    
 
-    tft.startWrite();
+
+ /*   uint32_t w = ( area->x2 - area->x1 + 1 );
+    uint32_t h = ( area->y2 - area->y1 + 1 );
+    if (tft.getStartCount() == 0)
+    {   // Processing if not yet started
+        tft.startWrite();
+    }
     tft.setAddrWindow( area->x1, area->y1, w, h );
-    tft.writePixels((lgfx::rgb565_t*)&color_p->full,w * h);
+    tft.writePixelsDMA((lgfx::rgb565_t*)&color_p->full,w * h);
     //tft.pushColors( ( uint16_t * )&color_p->full, w * h, true );
     tft.endWrite();
 
     lv_disp_flush_ready( disp_drv );
+*/
 }
 
 /*Read the touchpad*/
@@ -70,7 +86,7 @@ void setup()
   
     tft.begin();          /* TFT init */
     tft.setRotation( 1 ); /* Landscape orientation, flipped */
-    tft.setBrightness(255);
+    tft.setBrightness(128);
     /*Set the touchscreen calibration data,
      the actual data for your display can be acquired using
      the Generic -> Touch_calibrate example from the TFT_eSPI library*/
@@ -78,7 +94,7 @@ void setup()
     tft.setTouchCalibrate( calData );
 
     lv_init();
-    lv_disp_draw_buf_init( &draw_buf, buf, NULL, screenWidth * screenHeight / 10 );
+    lv_disp_draw_buf_init( &draw_buf, buf[0], buf[1], screenWidth * screenHeight / 10 );
 
     /*Initialize the display*/
     static lv_disp_drv_t disp_drv;
