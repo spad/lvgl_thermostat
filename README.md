@@ -59,5 +59,5 @@ Added *esp32-s3-devkitc-1-n16r8v.json* board to platformio IDE.
     },
     "url": "https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/hw-reference/esp32s3/user-guide-devkitc-1.html",
     "vendor": "Espressif"
-  
+}
 ```
